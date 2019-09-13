@@ -3,12 +3,15 @@
 /******************************************************/
 
 #line 1 "c:/Users/casaria3/Documents/workbench/wfs-virgin/wfs-virgin/src/wfs-virgin.ino"
+
 /*
  * Project wfs-virgin
  * Description:
  * Author:
  * Date:
  */
+
+
 
 // This #include statement was automatically added by the Particle IDE.
 #include <DS18B20.h>
@@ -31,18 +34,27 @@
 //address is 0x68(104)
 int cmdSetDamper(String command);
 int cmdTXV2(String command);
-int cmdTXV1(String command);
+int cmdTempReset(String command);
+void relayOff8574();
+void relayOn8574();
 void setup();
 void publishDebug();
 double getTemp(uint8_t addr[8]);
 void publishData();
 void publishPressure();
 void publishStatus();
+int ModulateDamper();
+void relayOp(int relay, int op);
+byte bitop(byte b1, byte b2, int op);
+void turnOnRelay(int relay);
+void turnOffRelay(int relay);
+void toggleRelay(int relay);
+void Relay8574(byte bitnum, boolean value);
 void loop();
 void getMCP();
 String relayCmd(String acommand);
 int triggerRelay(String command);
-#line 27 "c:/Users/casaria3/Documents/workbench/wfs-virgin/wfs-virgin/src/wfs-virgin.ino"
+#line 30 "c:/Users/casaria3/Documents/workbench/wfs-virgin/wfs-virgin/src/wfs-virgin.ino"
 #define Addr 0x68
 
 
@@ -72,26 +84,42 @@ TODO
 #define damper1_2           3
 #define txv1                4
 #define txv2                8
-#define damperBypass1       
-#define damperBypass2
 
+#define RelayFan1           2    //if ((InReverse1) && (msReverse1 > 10000) && (psi[4]>320)) {
+#define RelayCompr1         1
+#define RelayCool1          3
+#define RelayBypassDamper1  4
 
+#define RelayFan2           7
+#define RelayCompr2         8
+#define RelayCool2          5
+#define RelayBypassDamper2  6
 
-const int MAXRETRY = 2;
+static boolean InReverse1  = 0;
+static boolean InReverse2  = 0;
+static boolean HaltTemp = 0;
+
+const int MAXRETRY = 3;
 const int pinOneWire = D4;
 const int pinLED = D7;
-const uint32_t msPressureSampleTime = 500; // 
-const uint32_t msRelaySampleTime = 800; // 
-const uint32_t msTempSampleTime =2300;
+
+const uint32_t msPressureSampleTime = 400; // 
+const uint32_t msRelaySampleTime = 1900; // 
+const uint32_t msTempSampleTime =3900;
 const uint32_t msPublishTime = 12000; //30000
 const uint32_t msPublishTime2 = 3000; //30000
-const uint32_t msPublishTime3 = 300; //30000
+const uint32_t msPublishTime3 = 2400; //30000
 const uint32_t msCompressor1Startlock = 5000; //30000
 const uint32_t msCompressor2Startlock = 5000; //30000
+const uint32_t defrostTimer = 1000000;
+static uint32_t msDefrost1=0;
+static uint32_t msDefrost2=0;
 
-
-
+uint32_t msStartReverse1;
+uint32_t msStartReverse2;
 static int cmdPosArray[6];
+ 
+// SYSTEM_THREAD(ENABLED);
 
 // declare a global watchdog instance
 // reset the system after 15 seconds if the application is unresponsive
@@ -100,25 +128,26 @@ ApplicationWatchdog wd(20000, System.reset);
 
 const int nSENSORS =12;
                                                         
-    DS18B20 ds18b20(pinOneWire);
-    retained uint8_t sensorAddresses[8][nSENSORS];
-    float celsius[nSENSORS] = {NAN, NAN};
-    float temp;
+DS18B20 ds18b20(pinOneWire);
+retained uint8_t sensorAddresses[8][nSENSORS];
+float celsius[nSENSORS] = {NAN, NAN};
+float temp;
 
 //double celsius[nSENSORS] = {};
 //uint8_t addr[8][12];
 
-CASARIA_MCP3428  mcp1(0x68); 
+CASARIA_MCP3428  mcp1(0x68);  
 CASARIA_MCP3428  mcp2(0x6E); 
 
 //DS18 sensor(pinOneWire);
 
 Adafruit_PCA9685 damper = Adafruit_PCA9685(0x40, true);  // Use the default address, but also turn on debugging
 
-CASARIA_MCP23017 relays;
+CASARIA_MCP23017 relays;  //not used
 
-// PCF8574 I2C address is 0x20(32)
+// PCF8574 I2C address is 0x24 (36)
 #define Addr8574   0x24
+static byte relayMap=0xFF;
 
 int b1status=0;
 int b2status=0;
@@ -126,17 +155,14 @@ byte error;
 int8_t mcp1address; 
 long Raw_adc[8];
 float psi[8];
-const int psiFS[8] {500,200,500,0,200,0,500,200} ;   
+const int psiFS[8] {5000,300,300,0,500,0,0,0};   
 
-
-
-
-
+//HP2,   LP2
 
 int cmdSetDamper(String command){
            // Wire.reset();
- String valueString;
- for (int i = 0; i < 6; i++){
+ String valueString; 
+ for (int i = 0; i < 4; i++){
      valueString = command.substring(i*4, (i*4+4));
      cmdPosArray[i] = valueString.toInt();
      //TXV2 PWM output is 8 (skipped 3)
@@ -150,25 +176,73 @@ int cmdTXV2(String command){
   int TXVpos;
   TXVpos =  command.toInt();
   if (TXVpos <= 4096) {
-      damper.setVal(4,TXVpos);
-      
-      
+    damper.setVal(4,TXVpos);
   }
   return TXVpos;
             
 }
 
-int cmdTXV1(String command){
-  int TXVpos;
-  TXVpos =  command.toInt();
-  if (TXVpos <= 4096) {
-     damper.setVal(8,TXVpos);
-  }     
-  return TXVpos;
+int cmdTempReset(String command){
+  HaltTemp = TRUE;
+  relayOff8574();
+  delay(2000);
+   //find all temp sensors
+  ds18b20.resetsearch();
+  delay(200);                 // initialise for sensor search
+  for (int i = 0; i < nSENSORS; i++) {   // try to read the sensor addre
+        ds18b20.search(sensorAddresses[i]); // and if available store
+        delay(300); 
+        celsius[i]= 0;
+   }
+   HaltTemp = FALSE;
+   relayOn8574();
+   return 0;
+}
+
+void relayOff8574(){
+       Wire.begin();
+      //Wire.reset();
+      Wire.beginTransmission(Addr8574);
+      // Select GPIO as input
+      relayMap=0xff;
+      Wire.write(relayMap);  //Wire.write(0xff);
+
+
+      // All relafys turn off 
+      // Stop I2C transmission
+      Wire.endTransmission();
+}
+
+void relayOn8574(){
+       Wire.begin();
+      //Wire.reset();
+      Wire.beginTransmission(Addr8574);
+      // Select GPIO as input
+      relayMap=0x00 ;
+      Wire.write(relayMap);  //Wire.write(0xff);
+
+
+      // All relafys turn off 
+      // Stop I2C transmission
+      Wire.endTransmission();
 }
 
 
-void setup() {                                                                       
+
+void setup() {        
+  cmdStopDefrost1("abort");
+  cmdStopDefrost2("abort");                                                    
+  relayOff8574()
+  delay(3000);
+   //find all temp sensors
+  ds18b20.resetsearch();
+  delay(100);                 // initialise for sensor search
+  for (int i = 0; i < nSENSORS; i++) {   // try to read the sensor addre
+        ds18b20.search(sensorAddresses[i]); // and if available store
+        delay(300); 
+        celsius[i]= 0;
+   }
+ 
     relays.setAddress(0x20);
     relays.setRelays(16);
     relays.setOutputs(0x00, 0x00);
@@ -179,16 +253,21 @@ void setup() {
     
     //If this is a 32 channel relay board, the A0 address jumper is ALWAYS set on the second chipset, so should never be set here on the first
     
+    
     Particle.function("RelayControl", triggerRelay);
+    Particle.function("TempReset", cmdTempReset);  
     Particle.function("TXV1", cmdTXV1);
     Particle.function("TXV2", cmdTXV2);
+    Particle.function("REVRSE1",cmdRev1);
+    Particle.function("REVRSE2",cmdRev2);
 
     Particle.function("SetDamper", cmdSetDamper);
-  
-
+   // Particle.variable("Bank_1", b1status);
+   // Particle.variable("Bank_2", b2status);
+   
     
     //Particle.variable("Input Status", b4status);
-    relays.turnOffAllRelays();  // Relay off => energize external relay
+    relays.turnOffAllRelays();
     pinMode(pinLED, OUTPUT);  
 
    
@@ -196,21 +275,20 @@ void setup() {
      // Start serial communication and set baud rate = 9600
     //Serial.begin(9600);
     // Set variable
-    Particle.variable("i2cdevice", "MCP3428");
-    Particle.variable("Raw_adc[0]", Raw_adc[0]);
-    
+   
+   
     
     
     
     damper.begin();    // This calls Wire.begin()
     damper.setPWMFreq(1500);     // Maximum PWM frequency is 1600
     
-    damper.setVal(damper2_2, 2840);
-    damper.setVal(damper2_1, 2048);
-    damper.setVal(damper1_2, 2048);
-    damper.setVal(damper1_1, 2048);
-    damper.setVal(txv1, 3200); //default TXV2
-    damper.setVal(txv2, 3200); //default TXV1
+    damper.setVal(damper2_2, 2800);
+    damper.setVal(damper2_1, 3000);
+    damper.setVal(damper1_2, 2800);
+    damper.setVal(damper1_1, 3000);
+    damper.setVal(txv1, 3900); //default TXV2
+    damper.setVal(txv2, 4000); //default TXV
 
 
 
@@ -228,15 +306,15 @@ void setup() {
       //Wire.reset();
       Wire.beginTransmission(Addr8574);
       // Select GPIO as input
-      Wire.write(0xff);  //Wire.write(0xff);
+      relayMap=0xFF;
+      Wire.write(relayMap);  //Wire.write(0xff);
+      Relay8574(1,1);
+
+      // All relafys turn off 
       // Stop I2C transmission
       Wire.endTransmission();
   
-    
-      ds18b20.resetsearch();                 // initialise for sensor search
-      for (int i = 0; i < nSENSORS-1; i++) {   // try to read the sensor addre
-        ds18b20.search(sensorAddresses[i]); // and if available store
-      }
+
   
 }
 
@@ -250,7 +328,8 @@ void publishDebug() {
 
 
 
-    double getTemp(uint8_t addr[8]) {
+double getTemp(uint8_t addr[8]) {
+
       double _temp;
       int   i = 0;
     
@@ -261,32 +340,30 @@ void publishDebug() {
     
       if (i < MAXRETRY) {
         //_temp = ds18b20.convertToFahrenheit(_temp);
-        Serial.println(_temp);
+       // Serial.println(_temp);
       }
       else {
         _temp = -99;
-        Serial.println("Invalid reading");
+       // Serial.println("Invalid reading");
       }
+      return _temp; 
+}   
     
-      return _temp;
-    
-    }   
-    
-    void publishData() {
-      char szInfo[200];
-          snprintf(szInfo, sizeof(szInfo), "%.2f&%.2f&%.2f&%.2f&%.2f&%.2f&%.2f&%.2f&%.2f&%.2f&%.2f&%.2f", celsius[0], celsius[1], celsius[2], celsius[3],
-          celsius[4], celsius[5], celsius[6], celsius[7], celsius[8], celsius[9],  celsius[10], celsius[11]);
-          Particle.publish("dsTEMPS", szInfo, PRIVATE);
-                       
-    /*
-     for (int i = 0; i < nSENSORS; i++) {   //ry to read the sensor addre
-        snprintf(szInfo, sizeof(szInfo), "%x %x %x %x %x %x %x %x %x %x %x %x", sensorAddresses[0],sensorAddresses[1], sensorAddresses[2], sensorAddresses[3],
-          sensorAddresses[4], sensorAddresses[5], sensorAddresses[6], sensorAddresses[7], sensorAddresses[8],sensorAddresses[9],sensorAddresses[10],sensorAddresses[11]);
-        Particle.publish("dsAddress", szInfo, PRIVATE);
-      
-      }
-     */
-    }
+void publishData() {
+  char szInfo[200];
+      snprintf(szInfo, sizeof(szInfo), "%.2f&%.2f&%.2f&%.2f&%.2f&%.2f&%.2f&%.2f&%.2f&%.2f&%.2f&%.2f", celsius[0], celsius[1], celsius[2], celsius[3],
+      celsius[4], celsius[5], celsius[6], celsius[7], celsius[8], celsius[9],  celsius[10], celsius[11]);
+      Particle.publish("dsTEMPS", szInfo, PRIVATE);
+                    
+/*
+  for (int i = 0; i < nSENSORS; i++) {   //ry to read the sen-sor addre
+    snprintf(szInfo, sizeof(szInfo), "%x %x %x %x %x %x %x %x %x %x %x %x", sensorAddresses[0],sensorAddresses[1], sensorAddresses[2], sensorAddresses[3],
+      sensorAddresses[4], sensorAddresses[5], sensorAddresses[6], sensorAddresses[7], sensorAddresses[8],sensorAddresses[9],sensorAddresses[10],sensorAddresses[11]);
+    Particle.publish("dsAddress", szInfo, PRIVATE);
+  
+  }
+  */
+}
     
 
 void publishPressure(){   
@@ -298,6 +375,7 @@ void publishPressure(){
       Particle.publish("ds_psi",szInfo, PRIVATE );
            
 }
+
 void publishStatus(){   
 }  
 
@@ -372,6 +450,77 @@ void getTemp(){
     
 }
 */
+int ModulateDamper(){
+  static int16_t dutyCycle = 800;
+  static int16_t damperinc = 100;
+    dutyCycle += damperinc;    // Edit this if you want to edit the brightness step size
+    if (dutyCycle > 4095) {
+        dutyCycle = 4095;
+      damperinc= -damperinc;
+    }
+    if (dutyCycle <= 800) {
+        dutyCycle = 800;
+      damperinc= -damperinc;
+    } 
+    damper.setVal(0, dutyCycle);
+    return dutyCycle;
+}
+
+void relayOp(int relay, int op){
+    if(relay > 8){
+      
+    }else{
+        byte rbit = (1<<(relay-1));
+        Wire.beginTransmission(Addr8574);
+        // Select GPIO as input                                                                                                                                                                                                            
+        //(toggle) ? Wire.write(0x55) : Wire.write(0xAA);
+         //Wire.write(0x00); 
+        // Stop I2C transmission
+        relayMap = bitop(relayMap, rbit, op);
+        Wire.write(relayMap);
+        Wire.endTransmission();
+    }
+    
+}
+byte bitop(byte b1, byte b2, int op){
+    switch(op){
+        case 1:
+            return b1 | b2;
+        case 2:
+            return b1 & ~b2;
+        case 3:
+            return b1 ^ b2;
+    }
+    return 0;
+}
+
+void turnOnRelay(int relay){
+    relayOp(relay, 2);
+}
+void turnOffRelay(int relay){
+    relayOp(relay, 1);
+}
+void toggleRelay(int relay){
+    relayOp(relay, 3);
+}
+
+
+void Relay8574(byte bitnum, boolean value){
+  static bool toggle;
+
+
+  Wire.beginTransmission(Addr8574);
+  // Select GPIO as input                                                                                                                                                                                                            
+   //(toggle) ? Wire.write(0x55) : Wire.write(0xAA);
+ //Wire.write(0x00); 
+  // Stop I2C transmission
+  Wire.write(0x00);
+  relayMap= 0x00;
+  Wire.endTransmission();
+  toggle= !toggle;
+}
+
+
 void loop(){
   static uint32_t msTempSample = 0;
   static uint32_t msPressureSample = 0;
@@ -379,35 +528,53 @@ void loop(){
   static uint32_t msPublish = 0;
   static uint32_t msPublish2 = 0;
   static uint32_t msPublish3 = 0;
+  static uint32_t msReverse1 = 0;
+  static uint32_t msReverse2 = 0;
+  
+
   static uint32_t now;
-  static int16_t dutyCycle = 800;
-  static int16_t damperinc = 100;
-  static bool toggle;
+
+  if (msDefrost1 ==0) msDefrost1 = now + defrostTimer/2;
   
+  if (msDefrost2 ==0) msDefrost2 = now;
   
-  
+   
   now = millis();
 
-   
-  
+  wd.checkin(); // resets the AWDT count  
   if (now - msRelaySample >= msRelaySampleTime) {
                         
     msRelaySample = millis();
   }   
-    
-  
+  if (now - msDefrost1 >= defrostTimer) {
+    cmdRev1("go"); 
+    msDefrost1 = millis();
+      wd.checkin(); // resets the AWDT count  
+  }    
+
+  if (now - msDefrost2 >= defrostTimer) {
+    cmdRev2("go"); 
+    msDefrost2 = millis();
+      wd.checkin(); // resets the AWDT count  
+  }    
+
+
   if (now - msTempSample >= msTempSampleTime) {
-  
+    if (!HaltTemp){
+        wd.checkin(); // resets the AWDT count  
         for(int i=0; i < nSENSORS; i++) {
-          temp = getTemp(sensorAddresses[i]);
-          if (!isnan(temp)) { celsius[i] = temp;}
+          temp = getTemp(sensorAddresses[i]);      
+            
+           if (!isnan(temp))  {
+             celsius[i] = temp;
+          }
           else {
               temp = getTemp(sensorAddresses[i]);
               if (!isnan(temp)) celsius[i] = temp;
               
           }
         }
-  
+    }
     msTempSample = millis();
   }
   
@@ -415,56 +582,39 @@ void loop(){
   if (now - msPressureSample >= msPressureSampleTime) {
     getMCP();
     msPressureSample = millis();
+    msReverse1 = millis() - msStartReverse1;
+    msReverse2 = millis() - msStartReverse2;
+    if ((InReverse1) && (msReverse1 > 10000) && (psi[4]>300)) {
+      //if ( (psi[4]>300)) {
+        cmdStopDefrost1("OFF");
+    }
+    if ((InReverse2) && (msReverse2 > 10000) && (psi[0]>300)) {
+    //  if ( (psi[0]>300)) {
+        cmdStopDefrost2("OFF");
+    }
   }   
 
 
   if (now - msPublish2 >= msPublishTime2) {
     msPublish2 = millis();
     publishPressure();
-    publishStatus();
-    publishDebug();
+    //publishStatus();
+    //publishDebug();
 }
 
   if (now - msPublish3 >= msPublishTime3){
       
       msPublish3 = millis();
 
-    
- Wire.beginTransmission(Addr8574);
-  // Select GPIO as input                                                                                                                                                                                                            
- //(toggle) ? Wire.write(0x55) : Wire.write(0xAA);
-Wire.write(0x00); 
-  // Stop I2C transmission
-  Wire.endTransmission();
- toggle= !toggle;
-    
   }
+
   if (now - msPublish >= msPublishTime) {
-    msPublish = millis();
+
     publishData();
-
- 
-
-          
-      dutyCycle += damperinc;    // Edit this if you want to edit the brightness step size
-      if (dutyCycle > 4095) {
-          dutyCycle = 4095;
-        damperinc= -damperinc;
-      }
-      if (dutyCycle <= 800) {
-          dutyCycle = 800;
-        damperinc= -damperinc;
-
-     } 
-    //damper.setVal(0, dutyCycle);
-    
-    
+    //ModulateDamper(); 
+    msPublish = millis();    
   }    
-  wd.checkin(); // resets the AWDT count
-
- 
-    
-    
+  wd.checkin(); // resets the AWDT count    
 }
 
 
@@ -481,7 +631,7 @@ void getMCP(){
  byte error;
     int8_t address;
 
-    address = mcp1.devAddr;
+    address = mcp1.devAddr; 
     // The i2c_scanner uses the  return value of
     // the Write.endTransmisstion to see if
     // a device did acknowledge to the address.
@@ -502,10 +652,9 @@ void getMCP(){
             // raw_adc = raw_adc * LSB(1 mV)/PGA for PGA = 1;       // 12-bit Resolution
             // raw_adc = raw_adc * LSB(250 µV)/PGA for PGA = 1;     // 14-bit Resolution
             // raw_adc = raw_adc * LSB(62.5 µV)/PGA for PGA = 1;    // 16-bit Resolution
-        }
-        //calibration/linearizatiom
+        }        //calibration/linearizatiom
         //CALIBRATION 
-        psi[1] += 5;        // correct zero offset error
+                // correct zero offset error
     }
     else
     {  //errors occurred  
@@ -626,7 +775,7 @@ int triggerRelay(String command){
 
       //relays.relayTalk(relayCmd(command));
       relays.relayTalk(command);
-      return(1);
+      return 1;
 }
 
 

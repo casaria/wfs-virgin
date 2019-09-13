@@ -32,5 +32,6 @@ class CASARIA_MCP3428
         bool CheckConversion();
         long readADC();
 
+
     private:
 };

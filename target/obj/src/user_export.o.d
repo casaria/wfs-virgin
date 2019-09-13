@@ -26,7 +26,7 @@ c:/Users/casaria3/Documents/workbench/wfs-virgin/wfs-virgin/target//obj/src/user
  c:\users\casaria3\.particle\toolchains\gcc-arm\5.3.1\arm-none-eabi\include\sys\_intsup.h \
  c:\users\casaria3\.particle\toolchains\gcc-arm\5.3.1\arm-none-eabi\include\sys\_stdint.h \
  ../../../hal/inc/watchdog_hal.h ../../../hal/inc/core_subsys_hal.h \
- ../../../hal/inc/interrupts_hal.h ../../../hal/inc/pinmap_hal.h \
+ ../../../hal/inc/interrupts_hal.h ../../../hal/shared/platforms.h \
  ../../../hal/src/stm32/interrupts_irq.h \
  ../../../services/inc/static_assert.h \
  ../../../platform/MCU/STM32F2xx/CMSIS/Device/ST/Include/stm32f2xx.h \
@@ -61,7 +61,10 @@ c:/Users/casaria3/Documents/workbench/wfs-virgin/wfs-virgin/target//obj/src/user
  ../../../platform/MCU/STM32F2xx/STM32_StdPeriph_Driver/inc/stm32f2xx_usart.h \
  ../../../platform/MCU/STM32F2xx/STM32_StdPeriph_Driver/inc/stm32f2xx_wwdg.h \
  ../../../platform/MCU/STM32F2xx/STM32_StdPeriph_Driver/inc/misc.h \
- ../../../hal/inc/hal_irq_flag.h \
+ ../../../hal/inc/pinmap_hal.h ../../../hal/inc/hal_platform.h \
+ ../../../hal/inc/hal_platform_compat.h \
+ ../../../hal/src/stm32f2xx/pinmap_impl.h \
+ ../../../hal/src/photon/pinmap_defines.h ../../../hal/inc/hal_irq_flag.h \
  ../../../modules/shared/stm32f2xx/inc/user_dynalib.h
 
 ../../../modules/shared/stm32f2xx/inc/user_part_export.c:
@@ -122,7 +125,7 @@ c:\users\casaria3\.particle\toolchains\gcc-arm\5.3.1\arm-none-eabi\include\sys\_
 
 ../../../hal/inc/interrupts_hal.h:
 
-../../../hal/inc/pinmap_hal.h:
+../../../hal/shared/platforms.h:
 
 ../../../hal/src/stm32/interrupts_irq.h:
 
@@ -191,6 +194,16 @@ c:\users\casaria3\.particle\toolchains\gcc-arm\5.3.1\arm-none-eabi\include\sys\_
 ../../../platform/MCU/STM32F2xx/STM32_StdPeriph_Driver/inc/stm32f2xx_wwdg.h:
 
 ../../../platform/MCU/STM32F2xx/STM32_StdPeriph_Driver/inc/misc.h:
+
+../../../hal/inc/pinmap_hal.h:
+
+../../../hal/inc/hal_platform.h:
+
+../../../hal/inc/hal_platform_compat.h:
+
+../../../hal/src/stm32f2xx/pinmap_impl.h:
+
+../../../hal/src/photon/pinmap_defines.h:
 
 ../../../hal/inc/hal_irq_flag.h:
 
