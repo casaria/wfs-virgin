@@ -34,6 +34,11 @@
 //address is 0x68(104)
 int cmdSetDamper(String command);
 int cmdTXV2(String command);
+int cmdTXV1(String command);
+int cmdRev1(String command);
+int cmdStopDefrost1(String command);
+int cmdStopDefrost2(String command);
+int cmdRev2(String command);
 int cmdTempReset(String command);
 void relayOff8574();
 void relayOn8574();
@@ -105,8 +110,8 @@ const int pinLED = D7;
 
 const uint32_t msPressureSampleTime = 400; // 
 const uint32_t msRelaySampleTime = 1900; // 
-const uint32_t msTempSampleTime =3900;
-const uint32_t msPublishTime = 12000; //30000
+const uint32_t msTempSampleTime = 3000;
+const uint32_t msPublishTime = 8000; //30000
 const uint32_t msPublishTime2 = 3000; //30000
 const uint32_t msPublishTime3 = 2400; //30000
 const uint32_t msCompressor1Startlock = 5000; //30000
@@ -115,8 +120,9 @@ const uint32_t defrostTimer = 1000000;
 static uint32_t msDefrost1=0;
 static uint32_t msDefrost2=0;
 
-uint32_t msStartReverse1;
+uint32_t msStartReverse1; 
 uint32_t msStartReverse2;
+
 static int cmdPosArray[6];
  
 // SYSTEM_THREAD(ENABLED);
@@ -182,11 +188,57 @@ int cmdTXV2(String command){
             
 }
 
+int cmdTXV1(String command){
+  int TXVpos;
+  TXVpos =  command.toInt();
+  if (TXVpos <= 4096) {
+     damper.setVal(8,TXVpos);
+  }     
+  return TXVpos;
+}
+
+int cmdRev1(String command){
+
+    toggleRelay(RelayCool1);
+    toggleRelay(RelayFan1);
+    toggleRelay(RelayBypassDamper1);
+    InReverse1 = !InReverse1;
+    if (InReverse1) msStartReverse1 = millis();
+
+    return 1;
+}
+
+int cmdStopDefrost1(String command) {
+   turnOnRelay(RelayCool1);
+   turnOnRelay(RelayFan1);
+   turnOnRelay(RelayBypassDamper1);
+   InReverse1=0;
+   //msDefrost2 = millis() + defrostTimer -100000;
+   return 0;
+}
+
+int cmdStopDefrost2(String command) {
+   turnOnRelay(RelayCool2);
+   turnOnRelay(RelayFan2);
+   turnOnRelay(RelayBypassDamper2);
+   InReverse2=0;
+   return 0;
+}
+
+int cmdRev2(String command){
+    toggleRelay(RelayCool2);
+    toggleRelay(RelayFan2);
+    toggleRelay(RelayBypassDamper2);
+    InReverse2 = !InReverse2;
+    if (InReverse2) msStartReverse2 = millis();
+    return 0;
+}
+
 int cmdTempReset(String command){
-  HaltTemp = TRUE;
+  HaltTemp = TRUE;  
   relayOff8574();
   delay(2000);
-   //find all temp sensors
+  //find all temp sensors
   ds18b20.resetsearch();
   delay(200);                 // initialise for sensor search
   for (int i = 0; i < nSENSORS; i++) {   // try to read the sensor addre
@@ -212,7 +264,6 @@ void relayOff8574(){
       // Stop I2C transmission
       Wire.endTransmission();
 }
-
 void relayOn8574(){
        Wire.begin();
       //Wire.reset();
@@ -220,7 +271,6 @@ void relayOn8574(){
       // Select GPIO as input
       relayMap=0x00 ;
       Wire.write(relayMap);  //Wire.write(0xff);
-
 
       // All relafys turn off 
       // Stop I2C transmission
@@ -232,42 +282,42 @@ void relayOn8574(){
 void setup() {        
   cmdStopDefrost1("abort");
   cmdStopDefrost2("abort");                                                    
-  relayOff8574()
-  delay(3000);
+  relayOff8574();
+  delay(5000);
    //find all temp sensors
   ds18b20.resetsearch();
-  delay(100);                 // initialise for sensor search
+  delay(200);                 // initialise for sensor search
   for (int i = 0; i < nSENSORS; i++) {   // try to read the sensor addre
         ds18b20.search(sensorAddresses[i]); // and if available store
         delay(300); 
         celsius[i]= 0;
    }
  
-    relays.setAddress(0x20);
-    relays.setRelays(16);
-    relays.setOutputs(0x00, 0x00);
+    //relays.setAddress(0x20);
+    //relays.setRelays(16);
+    //relays.setOutputs(0x00, 0x00);
     
     // relays.setOutput(4);
-    relays.init();
+    //relays.init();
 
     
     //If this is a 32 channel relay board, the A0 address jumper is ALWAYS set on the second chipset, so should never be set here on the first
     
     
-    Particle.function("RelayControl", triggerRelay);
-    Particle.function("TempReset", cmdTempReset);  
+
+    //Particle.function("TempReset", cmdTempReset);  
     Particle.function("TXV1", cmdTXV1);
     Particle.function("TXV2", cmdTXV2);
-    Particle.function("REVRSE1",cmdRev1);
-    Particle.function("REVRSE2",cmdRev2);
+    //Particle.function("REVRSE1", cmdRev1);
+    //Particle.function("REVRSE2", cmdRev2);
 
-    Particle.function("SetDamper", cmdSetDamper);
+   // Particle.function("SetDamper", cmdSetDamper);
    // Particle.variable("Bank_1", b1status);
    // Particle.variable("Bank_2", b2status);
    
     
     //Particle.variable("Input Status", b4status);
-    relays.turnOffAllRelays();
+    //relays.turnOffAllRelays();
     pinMode(pinLED, OUTPUT);  
 
    
@@ -288,7 +338,7 @@ void setup() {
     damper.setVal(damper1_2, 2800);
     damper.setVal(damper1_1, 3000);
     damper.setVal(txv1, 3900); //default TXV2
-    damper.setVal(txv2, 4000); //default TXV
+    damper.setVal(txv2, 3900); //default TXV
 
 
 
@@ -537,11 +587,12 @@ void loop(){
   if (msDefrost1 ==0) msDefrost1 = now + defrostTimer/2;
   
   if (msDefrost2 ==0) msDefrost2 = now;
-  
+ 
+  wd.checkin();
    
   now = millis();
 
-  wd.checkin(); // resets the AWDT count  
+
   if (now - msRelaySample >= msRelaySampleTime) {
                         
     msRelaySample = millis();
@@ -549,19 +600,18 @@ void loop(){
   if (now - msDefrost1 >= defrostTimer) {
     cmdRev1("go"); 
     msDefrost1 = millis();
-      wd.checkin(); // resets the AWDT count  
   }    
+
+  wd.checkin();
 
   if (now - msDefrost2 >= defrostTimer) {
     cmdRev2("go"); 
     msDefrost2 = millis();
-      wd.checkin(); // resets the AWDT count  
   }    
 
 
   if (now - msTempSample >= msTempSampleTime) {
     if (!HaltTemp){
-        wd.checkin(); // resets the AWDT count  
         for(int i=0; i < nSENSORS; i++) {
           temp = getTemp(sensorAddresses[i]);      
             
@@ -573,6 +623,8 @@ void loop(){
               if (!isnan(temp)) celsius[i] = temp;
               
           }
+          
+        wd.checkin();
         }
     }
     msTempSample = millis();
@@ -584,11 +636,13 @@ void loop(){
     msPressureSample = millis();
     msReverse1 = millis() - msStartReverse1;
     msReverse2 = millis() - msStartReverse2;
-    if ((InReverse1) && (msReverse1 > 10000) && (psi[4]>300)) {
+    
+    wd.checkin();
+    if ((InReverse1) && (msReverse1 > 12000) && (psi[4]>290)) {
       //if ( (psi[4]>300)) {
         cmdStopDefrost1("OFF");
     }
-    if ((InReverse2) && (msReverse2 > 10000) && (psi[0]>300)) {
+    if ((InReverse2) && (msReverse2 > 12000) && (psi[0]>290)) {
     //  if ( (psi[0]>300)) {
         cmdStopDefrost2("OFF");
     }
