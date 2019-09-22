@@ -62,6 +62,12 @@ TODO
 static boolean InReverse1 = 0;
 static boolean InReverse2 = 0;
 static boolean HaltTemp = 0;
+static boolean SwitchDefrost1 = 0;
+static boolean SwitchDefrost2 = 0;
+
+static int DefrostLevel1 =0;
+static int DefrostLevel2 =0;
+
 
 const int MAXRETRY = 3;
 const int pinOneWire = D4;
@@ -162,25 +168,7 @@ int cmdTXV1(String command)
 }
 
 int cmdDefrost1(String command){
-  int level;
-  level=command.toInt();
-
-  toggleRelay(RelayCool1);
-  toggleRelay(RelayFan1);
-  toggleRelay(RelayBypassDamper1);
-  InReverse1 = !InReverse1;
-  if (level >= 3) {
-        damper.setVal(damper1_2, 500);
-        damper.setVal(damper1_1, 500);
-        if (psi[4] > 450) toggleRelay(RelayCool1);
-      
-      
-      }
-
-
-  if (InReverse1) 
-    msStartReverse1 = millis();
-
+  SwitchDefrost1 = !SwitchDefrost1;
   return 1;
 }
 
@@ -261,6 +249,9 @@ void relayOn8574()
   Wire.endTransmission();
 }
 
+ststic int DefrostLevel1 =0;
+
+
 void setup() {
 
   cmdStopDefrost1("abort");
@@ -313,7 +304,7 @@ void setup() {
   damper.setVal(damper1_2, 2800);
   damper.setVal(damper1_1, 3000);
   damper.setVal(txv1, 3500); //default TXV2
-  damper.setVal(txv2, 4000); //default TXV
+  damper.setVal(txv2, 3500); //default TXV
 
   // Initialise I2C communication as MASTER
   //Wire.begin();
@@ -374,6 +365,7 @@ void publishData()
   Particle.publish("dsTEMPS", szInfo, PRIVATE);
 
   /*
+
   for (int i = 0; i < nSENSORS; i++) {   //ry to read the sen-sor addre
     snprintf(szInfo, sizeof(szInfo), "%x %x %x %x %x %x %x %x %x %x %x %x", sensorAddresses[0],sensorAddresses[1], sensorAddresses[2], sensorAddresses[3],
       sensorAddresses[4], sensorAddresses[5], sensorAddresses[6], sensorAddresses[7], sensorAddresses[8],sensorAddresses[9],sensorAddresses[10],sensorAddresses[11]);
@@ -785,7 +777,7 @@ String relayCmd(String acommand)
 
       if (word.equalsIgnoreCase("bank"))
       {
-        all = true;
+        all = true; 
       }
       if (word.equalsIgnoreCase("all"))
       {
