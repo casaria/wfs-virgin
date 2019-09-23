@@ -30,22 +30,21 @@
 int cmdSetDamper(String command);
 int cmdTXV2(String command);
 int cmdTXV1(String command);
-int cmdDefrost1(String command);
+int cmdDefrost1(String szDefrost1);
 int cmdStopDefrost1(String command);
 int cmdStopDefrost2(String command);
-int cmdDefrost2(String command);
+int cmdDefrost2(String szDefrost2);
 int cmdTempReset(String command);
 void relayOff8574();
 void relayOn8574();
 void PerformDefrost2();
 void PerformDefrost1();
-void setup();
+void setup(void);
 void publishDebug();
 double getTemp(uint8_t addr[8]);
 void publishData();
 void publishPressure();
 void publishStatus();
-int ModulateDamper();
 void relayOp(int relay, int op);
 byte bitop(byte b1, byte b2, int op);
 void turnOnRelay(int relay);
@@ -112,10 +111,10 @@ const uint32_t msRelaySampleTime = 1900;   //
 const uint32_t msTempSampleTime = 3000;
 const uint32_t msPublishTime = 8000;          //30000
 const uint32_t msPublishTime2 = 3000;         //30000
-const uint32_t msPublishTime3 = 2400;         //30000
+const uint32_t msModulateDamperTime =60000;   //30000
 const uint32_t msCompressor1Startlock = 5000; //30000
 const uint32_t msCompressor2Startlock = 5000; //30000
-const uint32_t defrostTimer = 200000;  //900000
+const uint32_t defrostTimer = 2400000;        //900000
 static uint32_t msDefrost1 = 0;
 static uint32_t msDefrost2 = 0;
 
@@ -128,11 +127,12 @@ static int cmdPosArray[6];
 
 // declare a global watchdog instance
 // reset the system after 15 seconds if the application is unresponsive
-ApplicationWatchdog wd(20000, System.reset, 1024);
+ApplicationWatchdog wd(30000, System.reset, 1024);
 // Initialize objects from the lib
 
 const int nSENSORS = 12;
-
+const int damperDefault1 = 3000;
+const int damperDefault2 = 2800;
 DS18B20 ds18b20(pinOneWire);
 retained uint8_t sensorAddresses[8][nSENSORS];
 float celsius[nSENSORS] = {NAN, NAN};
@@ -201,10 +201,9 @@ int cmdTXV1(String command)
   return TXVpos;
 }
 
-int cmdDefrost1(String command)
+int cmdDefrost1(String szDefrost1)
 {
-
-  DefrostLevel1 = command.toInt();
+  DefrostLevel1 = szDefrost1.toInt();
   return DefrostLevel1;
 }
 
@@ -227,10 +226,10 @@ int cmdStopDefrost2(String command)
   return 0;
 }
 
-int cmdDefrost2(String command)
+int cmdDefrost2(String szDefrost2)
 {
 
-  DefrostLevel2 = command.toInt();
+  DefrostLevel2 = szDefrost2.toInt();
   return DefrostLevel2;
 }
 
@@ -281,176 +280,184 @@ void relayOn8574()
   Wire.endTransmission();
 }
 
-void PerformDefrost2() {
-    static int defstate = 0;
-    static uint32_t msStartTime = 0;
-    static int damper1 = damper.readPWMOn(damper2_1);
-    static int damper2 = damper.readPWMOn(damper2_2);
-
-    switch(defstate)
-    {
-    case 0:
-      msStartTime = millis();
-      turnOffRelay(RelayCool2);
-      turnOffRelay(RelayFan2);
-      turnOffRelay(RelayBypassDamper2);
-      InReverse2 = !InReverse2;
-      if (InReverse2)
-        msStartReverse2 = millis();
-      if (DefrostLevel2 >= 3)
-      {
-        msStartTime = msStartTime - 500000;
-    
-      }
-            //wait for dampers
-     // damper.setVal(damper1_2, 500);
-     // damper.setVal(damper1_1, 500);
-      defstate++;
-      break;
-      case 1:
-
-      if (millis() > (msStartTime + 15000))
-        defstate++;
-      break;
-      case 2:
-      turnOnRelay(RelayFan2);
-      if (millis() > (msStartTime + 45000))
-        defstate++;
-      break;
-      case 3:
-      turnOnRelay(RelayFan2);
-      turnOnRelay(RelayCool2);
-      defstate++;
-      break;
-     case 4:
-      if (millis() > (msStartTime + 25000))
-        defstate++;
-      break;
-      case 5:
-        turnOnRelay(RelayBypassDamper2);
-        defstate++; 
-      break;
-      case 6:
-        if (millis() > (msStartTime + 45000))
-            defstate++;
-
-      break;
-      case 7:
-      
-        damper.setVal(damper2_2, 2800);
-        damper.setVal(damper2_1, 3000);
-
-         DefrostLevel = 0;
-         defstate = 0;
-
-      break;
-
-    default:
-      break;
-   }
-}
-
-void PerformDefrost1() {
-    static int defstate = 0;
-    static uint32_t msStartTime = 0;
-    static int damper1 = damper.readPWMOn(damper1_1);
-    static int damper2 = damper.readPWMOn(damper1_2);
-
-    switch(defstate)
-    {
-    case 0:
-      msStartTime = millis();
-      turnOffRelay(RelayCool1);
-      turnOffRelay(RelayFan1);
-      turnOffRelay(RelayBypassDamper1);
-      InReverse1 = !InReverse1;
-      if (InReverse1)
-        msStartReverse1 = millis();
-      if (DefrostLevel1 >= 3)
-      {
-        msStartTime = msStartTime - 500000;
-    
-      }
-            //wait for dampers
-     // damper.setVal(damper1_2, 500);
-     // damper.setVal(damper1_1, 500);
-      defstate++;
-      break;
-      case 1:
-
-      if (millis() > (msStartTime + 15000))
-        defstate++;
-      break;
-      case 2:
-      turnOnRelay(RelayFan1);
-      if (millis() > (msStartTime + 45000))
-        defstate++;
-      break;
-      case 3:
-      turnOnRelay(RelayFan1);
-      turnOnRelay(RelayCool1);
-      defstate++;
-      break;
-     case 4:
-      if (millis() > (msStartTime + 25000))
-        defstate++;
-      break;
-      case 5:
-        turnOnRelay(RelayBypassDamper1);
-        defstate++; 
-      break;
-      case 6:
-        if (millis() > (msStartTime + 45000))
-            defstate++;
-
-      break;
-      case 7:
-      
-        damper.setVal(damper1_2, 2800);
-        damper.setVal(damper1_1, 3000);
-
-         DefrostLevel1 = 0;
-         defstate = 0;
-
-      break;
-
-    default:
-      break;
-    }
-}
-
-void setup()
+void PerformDefrost2()
 {
-  cmdStopDefrost1("abort");
-  cmdStopDefrost2("abort");
+  static int defstate = 0;
+  static uint32_t msStartTime = 0;
+  static int damper1 = damper.readPWMOn(damper2_1);
+  static int damper2 = damper.readPWMOn(damper2_2);
+
+  switch (defstate)
+  {
+  case 0:
+    msStartTime = millis();
+    turnOffRelay(RelayCool2);
+    turnOffRelay(RelayFan2);
+    turnOffRelay(RelayBypassDamper2);
+    InReverse2 = !InReverse2;
+    if (InReverse2)
+      msStartReverse2 = millis();
+    if (DefrostLevel2 >= 3)
+    {
+      msStartTime = msStartTime - 2000;
+    }
+    //wait for dampers
+    damper.setVal(damper2_2, 500);
+    damper.setVal(damper2_1, 500);
+    defstate++;
+    break;
+  case 1:
+
+    if (millis() > (msStartTime + 25000))
+      defstate++;
+    break;
+  case 2:
+    turnOnRelay(RelayFan2);
+    if (millis() > (msStartTime + 29000))
+      defstate++;
+    break;
+  case 3:
+
+    defstate++;
+    break;
+  case 4:
+
+    if (millis() > (msStartTime + 55000)) defstate++;
+    break;
+  case 5:
+    turnOnRelay(RelayFan2);
+    turnOnRelay(RelayCool2);
+   
+    if (millis() > (msStartTime + 65000)) defstate++;
+  break;
+  case 6:
+    damper.setVal(damper2_2, 3600);
+    damper.setVal(damper2_1, 300);
+    if (millis() > (msStartTime + 75000)) defstate++;    
+  break;
+  case 7:
+    turnOnRelay(RelayBypassDamper2);
+    defstate++;
+    break;
+  case 8:
+    if (millis() > (msStartTime + 95000))
+      defstate++;
+
+    break;
+  case 9:
+
+    DefrostLevel2 = 0;
+    defstate = 0;
+
+    break;
+
+  default:
+    break;
+  }
+}
+
+void PerformDefrost1()
+{
+  static int defstate = 0;
+  static uint32_t msStartTime = 0;
+  static int damper1 = damper.readPWMOn(damper1_1);
+  static int damper2 = damper.readPWMOn(damper1_2);
+  switch (defstate)
+  {
+  case 0:
+    msStartTime = millis();
+    turnOffRelay(RelayCool1);
+    turnOffRelay(RelayFan1);
+    turnOffRelay(RelayBypassDamper1);
+    InReverse1 = !InReverse1;
+    if (InReverse1)
+      msStartReverse1 = millis();
+    if (DefrostLevel1 >= 3)
+    {
+      msStartTime = msStartTime - 2000;
+    }
+    //wait for dampers
+    damper.setVal(damper1_2, 500);
+    damper.setVal(damper1_1, 500);
+    defstate++;
+    break;
+  case 1:
+
+    if (millis() > (msStartTime + 55000))
+      defstate++;
+    break;
+  case 2:
+    turnOnRelay(RelayFan1);
+    if (millis() > (msStartTime + 65000))
+      defstate++;
+    break;
+  case 3:
+    damper.setVal(damper1_2, 3600);
+    damper.setVal(damper1_1, 3700);
+        turnOnRelay(RelayFan1);
+    turnOnRelay(RelayCool1);
+    defstate++;
+    break;
+  case 4:
+  
+    damper.setVal(damper1_2, 3600);
+    damper.setVal(damper1_1, 3700);
+    defstate++;
+    if (millis() > (msStartTime + 95000))
+      defstate++;
+    break;
+  case 5:
+    turnOnRelay(RelayBypassDamper1);
+    defstate++;
+    break;
+  case 6:
+    if (millis() > (msStartTime + 120000))
+      defstate++;
+    turnOnRelay(RelayCompr1);
+
+    break;
+  case 7:
+
+
+    DefrostLevel1 = 0;
+    defstate = 0;
+  }
+}
+
+void setup(void)
+{
+  //Particle.function("SetDamper", cmdSetDamper);
+
+  //cmdStopDefrost1("abort");
+  //cmdStopDefrost2("abort");
   relayOff8574();
-  delay(5000);
+  delay(8000);
   //find all temp sensors
+  wd.checkin();
   ds18b20.resetsearch();
-  delay(200); // initialise for sensor search
+  delay(300); // initialise for sensor search
   for (int i = 0; i < nSENSORS; i++)
-  {                       -              // try to read the sensor addre
+  {                                     // try to read the sensor addre
     ds18b20.search(sensorAddresses[i]); // and if available store
-    delay(300);
+    delay(400);
     celsius[i] = 0;
   }
-
+  wd.checkin();
   //relays.setAddress(0x20);
   //relays.setRelays(16);
   //relays.setOutputs(0x00, 0x00);
 
-  // relays.setOutput(4);
+  //relays.setOutput(4);
   //relays.init();
 
   //If this is a 32 channel relay board, the A0 address jumper is ALWAYS set on the second chipset, so should never be set here on the first
 
-  //Particle.function("Te mpReset", cmdTempReset);
+  //Particle.function("TempReset", cmdTempReset);
   Particle.function("TXV1", cmdTXV1);
-  //Particle.function("TXV2", cmdTXV2);
+  Particle.function("TXV2", cmdTXV2);
   //Particle.function("DEFROST1", cmdDefrost1);
   //Particle.function("DEFROST2", cmdDefrost2);
 
-  // Particle.function("SetDamper", cmdSetDamper);
   // Particle.variable("Bank_1", b1status);
   // Particle.variable("Bank_2", b2status);
 
@@ -466,14 +473,15 @@ void setup()
   damper.begin();          // This calls Wire.begin()
   damper.setPWMFreq(1500); // Maximum PWM frequency is 1600
 
-  damper.setVal(damper2_2, 2800);
-  damper.setVal(damper2_1, 3000);
-  damper.setVal(damper1_2, 2800);
-  damper.setVal(damper1_1, 3000);
-  damper.setVal(txv1, 3500); //default TXV2
-  damper.setVal(txv2, 3500); //default TXV
+  damper.setVal(damper2_2, 3100);
+  damper.setVal(damper2_1, 3300);
+  damper.setVal(damper1_2, 4000);  //4000
+  damper.setVal(damper1_1, 4000);  //4000
+  damper.setVal(txv1, 3800); //default TXV2  3700
+  damper.setVal(txv2, 3800); //default TXV   4000 
 
   // Initialise I2C communication as MASTER
+
   //Wire.begin();
   // Start I2C Transmission
   //Wire.beginTransmission(Addr);
@@ -493,6 +501,9 @@ void setup()
   // All relafys turn off
   // Stop I2C transmission
   Wire.endTransmission();
+
+  //turnOffRelay(RelayCompr2);
+  //turnOffRelay(RelayFan2);
 }
 
 void publishDebug()
@@ -627,22 +638,28 @@ void getTemp(){
     
 }
 */
-int ModulateDamper()
+int ModulateDamper(uint8_t damperNum, int min=1200, int max=4095, int by=100)
 {
-  static int16_t dutyCycle = 800;
-  static int16_t damperinc = 100;
-  dutyCycle += damperinc; // Edit this if you want to edit the brightness step size
-  if (dutyCycle > 4095)
+  static int16_t dutyCycle;
+  boolean goup= FALSE;
+
+  // Edit this if you want to edit the brightness step size
+  if (dutyCycle > max)
   {
-    dutyCycle = 4095;
-    damperinc = -damperinc;
+    dutyCycle = max;
+    goup = FALSE;
+
   }
-  if (dutyCycle <= 800)
+  if (dutyCycle <= min)
   {
-    dutyCycle = 800;
-    damperinc = -damperinc;
+    dutyCycle = min;
+    goup = TRUE;
   }
-  damper.setVal(0, dutyCycle);
+  if (goup) dutyCycle += by;
+   else dutyCycle -= by;
+
+  
+  damper.setVal(damperNum, dutyCycle);
   return dutyCycle;
 }
 
@@ -713,19 +730,23 @@ void loop()
   static uint32_t msRelaySample = 0;
   static uint32_t msPublish = 0;
   static uint32_t msPublish2 = 0;
-  static uint32_t msPublish3 = 0;
+  static uint32_t msModulateDamper = 0;
   static uint32_t msReverse1 = 0;
   static uint32_t msReverse2 = 0;
-
   static uint32_t now;
 
   if (msDefrost1 == 0)
-    msDefrost1 = now + defrostTimer * 1.8;
+    //msDefrost1 = now + defrostTimer * 3;
 
   if (msDefrost2 == 0)
-    msDefrost2 = now + defrostTimer * 1.4;
+    //msDefrost2 = now + defrostTimer * 1.5;
 
   wd.checkin();
+
+  if (psi[0] > 529)
+    turnOffRelay(RelayCompr2);
+  if (psi[4] > 529)
+    turnOffRelay(RelayCompr1);
 
   now = millis();
 
@@ -735,16 +756,18 @@ void loop()
     msRelaySample = millis();
   }
 
-  if (now - msDefrost1 >= defrostTimer)
+  if (now - msDefrost1 >= defrostTimer) 
   {
-    cmdDefrost1("4");
-    msDefrost1 = millis();
+    if (celsius[2] < 6.0)
+      cmdDefrost1("4");
+      msDefrost1 = millis();
   }
 
   if (now - msDefrost2 >= defrostTimer)
   {
-    cmdDefrost2("4");
-    msDefrost2 = millis();
+    if (celsius[3] < 6.0)
+      cmdDefrost2("4");
+      msDefrost2 = millis();
   }
 
   if (now - msTempSample >= msTempSampleTime)
@@ -791,10 +814,11 @@ void loop()
       cmdStopDefrost2("OFF");
     } */
   }
-  
-  
-  if (DefrostLevel1) PerformDefrost1();
-  if (DefrostLevel2) PerformDefrost2();
+
+  if (DefrostLevel1)
+    PerformDefrost1();
+  if (DefrostLevel2)
+    PerformDefrost2();
 
   if (now - msPublish2 >= msPublishTime2)
   {
@@ -804,22 +828,23 @@ void loop()
     //publishDebug();
   }
 
-  if (now - msPublish3 >= msPublishTime3)
+  if (now - msModulateDamper >= msModulateDamperTime)
   {
-
-    msPublish3 = millis();
+    msModulateDamper = millis();
+    ModulateDamper(damper1_1 ,1500, 3600, 100);
+    ModulateDamper(damper1_2 ,1500, 3600, 100);
+    ModulateDamper(damper2_1 ,1500, 3600, 100);
+    ModulateDamper(damper2_2 ,1500, 3600, 100);
+  
   }
 
   if (now - msPublish >= msPublishTime)
   {
-
     publishData();
     //ModulateDamper();
     msPublish = millis();
   }
   wd.checkin(); // resets the AWDT count
-
-
 }
 
 void getMCP()
@@ -855,12 +880,14 @@ void getMCP()
       // raw_adc = raw_adc * LSB(250 µV)/PGA for PGA = 1;     // 14-bit Resolution
       // raw_adc = raw_adc * LSB(62.5 µV)/PGA for PGA = 1;    // 16-bit Resolution
     } //calibration/linearizatiom
-      //CALIBRATION
-      // correct zero offset 
-      if (psi[0] < 600) {
-        psi[0] = psi[0] + 15;
-      }
-  }  else
+    //CALIBRATION
+    // correct zero offset
+    if (psi[0] < 600)
+    {
+      psi[0] = psi[0] + 15;
+    }
+  }
+  else
   { //errors occurred
   }
 
