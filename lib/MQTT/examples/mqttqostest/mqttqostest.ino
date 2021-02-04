@@ -44,7 +44,7 @@ void setup() {
     Serial.begin(9600);
     RGB.control(true);
 
-    // connect to the server
+    // connect to the server/
     client.connect("sparkclient");
 
     // add qos callback. If don't add qoscallback, ACK message from MQTT server is ignored.

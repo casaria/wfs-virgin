@@ -19,6 +19,9 @@ public:
     void setInputs(int map1, int map2);
     
     void init();
+    //process reAssignment
+    int reAssign(int relay);
+
     //Turn on Relay
     void turnOnRelay(int relay);
     //Turn off Relay
@@ -52,10 +55,17 @@ public:
     void readStatus();
      
     void relayOp(int relay, int op);
+
+        //NO REASSIgnment default index = value
+    int reAssignmentMap [17] { 0, 1,2,3,4,
+                               5,6,7,8,
+                               9,10,11,12,
+                               13,14,15,16  } ;
     //internal use method for refreshing bank status variables
 private:
     byte bitop(byte b1, byte b2, int op);
     
+     //index = 1..16 relay number reqestrd
 
 
     int outputMap[2] = {255, 255};

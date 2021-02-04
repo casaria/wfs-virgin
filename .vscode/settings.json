@@ -3,9 +3,13 @@
     "C_Cpp.default.configurationProvider": "particle.particle-vscode-core",
     "cortex-debug.openocdPath": "${command:particle.getDebuggerOpenocdPath}",
     "files.associations": {
-        "*.ino": "cpp"
+        "*.ino": "cpp",
+        "*.tcc": "cpp",
+        "istream": "cpp",
+        "ostream": "cpp",
+        "sstream": "cpp"
     },
-    "particle.targetDevice": "WFS-VIRGIN",
-    "particle.firmwareVersion": "1.4.0",
-    "particle.targetPlatform": "photon"
+    "particle.firmwareVersion": "2.0.1",
+    "particle.targetPlatform": "photon",
+    "particle.targetDevice": "WFS-VIRGIN"
 }

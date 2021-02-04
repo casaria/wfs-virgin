@@ -92,6 +92,7 @@ void Adafruit_PCA9685::setVal(uint8_t ledNum, uint16_t val, bool invert)
   // Clamp value between 0 and 4095 inclusive.
   val = min(val, 4095);
   val = max(0, val);
+  values[ledNum]=val;  //stpre for retrieval
   if (invert) {
     if (val == 0) {
       // Special value for signal fully on.
@@ -120,6 +121,11 @@ void Adafruit_PCA9685::setVal(uint8_t ledNum, uint16_t val, bool invert)
   }
 }
 
+uint16_t Adafruit_PCA9685::getVal(uint8_t ledNum){
+    return values[ledNum];
+
+
+}
 /**
  * Read the set PWM-off value for a given LED
  * @param  ledNum  The LED number on the driver

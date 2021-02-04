@@ -22,7 +22,7 @@ boolean DS18B20::search(uint8_t addr[8])
   else           memset(addr, 0, 8);
   return isSuccess;
 }
-  
+
 DS18B20::~DS18B20()
 {
   delete(ds);

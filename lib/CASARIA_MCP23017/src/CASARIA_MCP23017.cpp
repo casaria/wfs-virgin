@@ -1,7 +1,6 @@
-#include "CASARIA_MCP23017.h"
-#include "spark_wiring_usbserial.h"
-#include "Particle.h"
-
+#include <CASARIA_MCP23017.h>
+//#include <spark_wiring_usbserial.h">
+#include <Particle.h>
 //Comment line below out to turn off Serial logging
 //#define LOGGING
 
@@ -51,6 +50,12 @@ void CASARIA_MCP23017::init(){
     readStatus();
 }
 
+ int CASARIA_MCP23017::reAssign(int relay){
+     if ((relay > 0) && (relay <=16)) { 
+         return reAssignmentMap[relay];
+     }
+ }
+
 
 void CASARIA_MCP23017::turnOnRelay(int relay){
     relayOp(relay, 2);
@@ -62,7 +67,9 @@ void CASARIA_MCP23017::toggleRelay(int relay){
     relayOp(relay, 3);
 }
 
+
 void CASARIA_MCP23017::relayOp(int relay, int op){
+    relay = reAssign(relay);
     if(relay > 8){
         byte rbit = (1<<(relay-9));
         if((outputMap[1] & rbit) > 0) return;
