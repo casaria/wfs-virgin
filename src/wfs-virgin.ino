@@ -94,17 +94,17 @@ const int MQTT_LED = D7;
 //const int PB_SW = A7;
 //const int slaveSelectPinA = A2;
 
-const char *MQTTServer = "ccc.casaria.net";
+char* MQTTServer = "ccc.casaria.net";
 const uint32_t msPressureSampleTime = 1000;
 const uint32_t msRelaySampleTime = 2000; //
-const uint32_t msTempSampleTime = 950;
+const uint32_t msTempSampleTime =8950;
 const uint32_t msPublishTime = 5000;          //30000
 const uint32_t msPublishTime2 = 8000;         //30000
 const uint32_t msModulateDamperTime = 120000; //30000
 const uint32_t msCompressor1Startlock = 5000; //30000
 const uint32_t msCompressor2Startlock = 5000; //30000
 const uint32_t defrostTimer = 5800000;        //1800000
-const uint32_t MQTTConnectCheckTimer = 2000;
+const uint32_t MQTTConnectCheckTimer = 3000;
 static uint32_t msDefrost1 = 0;
 static uint32_t msDefrost2 = 0;
 
@@ -152,6 +152,8 @@ const int damperDefault2 = 2800;
 String sz18B20AddressInfo[nSENSORS];
 //[(1 * nSENSORS)+1];
 
+
+ApplicationWatchdog wd(60000, System.reset, 1424);
 CASARIA_MCP23017 relays;
 
 String szInfo;
@@ -167,7 +169,7 @@ double temp;
 CASARIA_MCP3428 mcp1(0x68);
 CASARIA_MCP3428 mcp2(0x6E);
 
-MQTT MQTTclient("ccc.casaria.net", 1883, MQTTcallback);
+MQTT MQTTclient(MQTTServer, 1883, MQTTcallback);
 uint16_t qos2messageid1 = 0;
 
 //DS18 sensor(pinOneWire);
@@ -188,7 +190,7 @@ void MQTTcallback(char *topic, byte *payload, unsigned int length)
 {
   char p[length + 1];
   memcpy(p, payload, length);
-  //  wd.checkin(); // resets the AWDT count
+  wd.checkin(); // resets the AWDT count
   p[length] = NULL;
   String message(p);
 
@@ -271,7 +273,7 @@ void MQTTConnect()
 
   // connect to the server
   digitalWrite(MQTT_LED, LOW);
-  // wd.checkin();
+  wd.checkin();
   MQTTclient.connect(String(SubscribeTopic) + String(UNIT));
   // add qos callback. If don't add qoscallback, ACK message from MQTT server is ignored.
   MQTTclient.addQosCallback(qoscallback); // publish/subscribe
@@ -417,7 +419,7 @@ int cmdTempReset(String command)
   //find all temp sensors
   for (int i = 0; i < nSENSORS; i++)
     sz18B20AddressInfo[i] = "";
-  // wd.checkin();
+  wd.checkin();
   delay(10);
   ds18b20.resetsearch();
   delay(200); // initialise for sensor search
@@ -428,9 +430,9 @@ int cmdTempReset(String command)
     //String address((char*)sensorAddresses[i]);
     delay(300);
     celsius[i] = 0;
-    //wd.checkin();
+    wd.checkin();
   }
-  // wd.checkin();
+  wd.checkin();
   /* for (int i = 0; i< nSENSORS; i++){
       for (int x=0; x < 8; x++){
         sz18B20AddressInfo[i].concat(String::format("%02x", sensorAddresses[i][x]) );
@@ -751,7 +753,7 @@ void setup(void)
   relayOff8574();
   delay(5000);
   //find all temp sensors
-  // wd.checkin();
+  wd.checkin();
 
   ds18b20.resetsearch();
   delay(300); // initialise for sensor search
@@ -761,7 +763,7 @@ void setup(void)
     delay(400);
     celsius[i] = 0;
   }
-  //wd.checkin();
+  wd.checkin();
 
   //relays.setAddress(0x20);
   //relays.setRelays(16);
@@ -792,23 +794,23 @@ void setup(void)
   damper.begin();          // This calls Wire.begin()
   damper.setPWMFreq(1500); // Maximum PWM frequency is 1600
 
-  damper.setVal(damper2_2, 3800);
-  damper.setVal(damper2_1, 4095);
-  damper.setVal(damper1_2, 3800);
-  damper.setVal(damper1_1, 4095);
+  damper.setVal(damper2_2, 480);
+  damper.setVal(damper2_1, 480);
+  damper.setVal(damper1_2, 3801);
+  damper.setVal(damper1_1, 3661);
 
   turnOnRelay(RelayBypassDamper1);
   turnOnRelay(RelayBypassDamper2);
   // Initialise I2C communication as MASTER
-  //wd.checkin();
+  wd.checkin();
   //UnitMode1(manual);
   cmdTempReset("");
-  // wd.checkin();
+   wd.checkin();
 }
 
 void publishDebug()
 {
-  // char szInfo[200];
+  // char szInfo[200];fWFSZ
 }
 
 double getTemp(uint8_t addr[8])
@@ -1087,7 +1089,7 @@ void loop()
 
   now = millis();
 
-  // wd.checkin();
+  wd.checkin();
 
   if (msDefrost1 == 0)
     msDefrost1 = now + defrostTimer;
@@ -1095,7 +1097,7 @@ void loop()
   if (msDefrost2 == 0)
     msDefrost2 = now + defrostTimer;
 
-  // wd.checkin();
+  wd.checkin();
 
   if (psi[0] > 450)
     turnOffRelay(RelayCompr1);
@@ -1120,7 +1122,7 @@ void loop()
     msDefrost2 = millis();
   }
 
-  //wd.checkin();
+  wd.checkin();
 
   if (now - msMQTTConnectCheck >= MQTTConnectCheckTimer)
   {
@@ -1135,7 +1137,7 @@ void loop()
     }
     msMQTTConnectCheck = millis();
   }
-  //wd.checkin();
+  wd.checkin();
 
   if (now - msTempSample >= msTempSampleTime)
   {
@@ -1156,7 +1158,7 @@ void loop()
             celsius[i] = temp;
         }
 
-        // wd.checkin();
+        wd.checkin();
       }
     }
     msTempSample = millis();
@@ -1181,7 +1183,7 @@ void loop()
       }
   
   }*/
-  //wd.checkin();
+  wd.checkin();
 
   if (now - msPressureSample >= msPressureSampleTime)
   {
@@ -1190,7 +1192,7 @@ void loop()
     msReverse1 = millis() - msStartReverse1;
     msReverse2 = millis() - msStartReverse2;
 
-    //wd.checkin();
+    wd.checkin();
     /*if ((InReverse1) && (msReverse1 > 12000) && (psi[4] > 290))
     {
       //if ( (psi[4]>300)) {
@@ -1202,15 +1204,15 @@ void loop()
   }
 
   PerformDefrost1(0);
-  // wd.checkin();
+   wd.checkin();
   PerformDefrost2(0);
 
   if (now - msPublish2 >= msPublishTime2)
   {
     msPublish2 = millis();
-    //wd.checkin();
+    wd.checkin();
     publishPressure();
-    // wd.checkin();
+    wd.checkin();
     MQTTpublish("damper1_1", String(damper.getVal(damper1_1), DEC));
     MQTTpublish("damper1_2", String(damper.getVal(damper1_2), DEC));
     MQTTpublish("damper2_1", String(damper.getVal(damper2_1), DEC));
@@ -1234,11 +1236,11 @@ void loop()
   if (now - msPublish >= msPublishTime)
   {
     publishData();
-    // wd.checkin();
+    wd.checkin();
     //ModulateDamper();
     msPublish = millis();
   }
-  // wd.checkin(); // resets the AWDT count
+  wd.checkin(); // resets the AWDT count
   if (MAINTENANCE_ON_UNIT1)
   {
     turnOffRelay(RelayCompr1);
@@ -1297,7 +1299,7 @@ void getMCP()
       psi[0] = psi[0] + 15;
     }
   }
-  // wd.checkin();
+  wd.checkin();
   address = mcp2.devAddr;
   // The i2c_scanner uses the return value of
   // the Write.endTransmisstion to see if
