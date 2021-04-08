@@ -556,8 +556,7 @@ void PerformDefrost2(int advanceToState)
     //restore txv
     turnOnRelay(RelayFan2);
     turnOnRelay(RelayCool2);
-    turnOnRelay(RelayCompr2);
-    
+    turnOnRelay(RelayCompr2);   
     damper.setVal(damper2_2, damper2);
     damper.setVal(damper2_1, damper1);
     damper.setVal(txv2, txvValue);

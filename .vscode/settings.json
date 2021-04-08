@@ -9,7 +9,7 @@
         "ostream": "cpp",
         "sstream": "cpp"
     },
-    "particle.firmwareVersion": "2.0.1",
+    "particle.firmwareVersion": "3.0.0-rc.2",
     "particle.targetPlatform": "photon",
     "particle.targetDevice": "WFS-VIRGIN"
 }
