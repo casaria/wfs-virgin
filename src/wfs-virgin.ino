@@ -153,7 +153,7 @@ String sz18B20AddressInfo[nSENSORS];
 //[(1 * nSENSORS)+1];
 
 
-ApplicationWatchdog wd(60000, System.reset, 1424);
+ApplicationWatchdog wd(12000, System.reset, 1924);
 CASARIA_MCP23017 relays;
 
 String szInfo;
