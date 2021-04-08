@@ -1091,10 +1091,10 @@ void loop()
   wd.checkin();
 
   if (msDefrost1 == 0)
-    msDefrost1 = now + defrostTimer;
+    msDefrost1 = now ;//  + defrostTimer;
 
   if (msDefrost2 == 0)
-    msDefrost2 = now + defrostTimer;
+    msDefrost2 = now  : //+ defrostTimer;
 
   wd.checkin();
 
