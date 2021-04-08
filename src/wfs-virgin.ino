@@ -43,7 +43,7 @@ TODO
 - Compressor 1
 - Runtime using Tstamp
 - issue with fan, crash, bettee Watchd dog
-    - MQTT with SSL/TLS Qos2, locaL FALLBACK SERVER3
+-    - MQTT with SSL/TLS Qos2, locaL FALLBACK SERVER3
     
     
     */
@@ -88,9 +88,9 @@ static int DefrostLevel2 = 0;
 const int MAXRETRY = 3;
 const int pinOneWire = D4;
 const int pinLED = D7;
-//const int speakerPin = D2;
+const int speakerPin = D2;
 const int MQTT_LED = D7;
-//const int PB_LED= D3;90
+//const nt PB_LED= D3;90
 //const int PB_SW = A7;
 //const int slaveSelectPinA = A2;
 
@@ -120,6 +120,7 @@ static int cmdPosArray[6];
 
 static bool MAINTENANCE_ON_UNIT1 = FALSE;
 static bool MAINTENANCE_ON_UNIT2 = FALSE;
+static boll coolStop1 = FALSE;
 
 enum mode_u
 {
@@ -142,6 +143,8 @@ int cmdDefrost1(String szDefrost1);
 int cmdDefrost2(String szDefrost1);
 void PerformDefrost1(int advanceToState);
 void PerformDefrost2(int advanceToState);
+int cmdStopDefrost1(String command);
+int cmdStopDefrost2(String command);
 
 // declare a global watchdog instance
 // reset the system after 15 seconds if the application is unresponsive
@@ -153,7 +156,7 @@ String sz18B20AddressInfo[nSENSORS];
 //[(1 * nSENSORS)+1];
 
 
-ApplicationWatchdog wd(12000, System.reset, 1924);
+ApplicationWatchdog wd(22000, System.reset, 1924);
 CASARIA_MCP23017 relays;
 
 String szInfo;
@@ -383,8 +386,8 @@ int cmdStopDefrost1(String command)
   turnOnRelay(RelayBypassDamper1);
   InReverse1 = 0;
   MQTTpublish("defrost1", String(DefrostLevel1, DEC));
-
-  PerformDefrost1(8);
+  
+    PerformDefrost1(13);
   //msDefrost2 = millis() + defrostTimer -100000;
   return 0;
 }
@@ -397,7 +400,7 @@ int cmdStopDefrost2(String command)
   InReverse2 = 0;
   MQTTpublish("defrost2", String(DefrostLevel2, DEC));
 
-  PerformDefrost2(8);
+  PerformDefrost2(13);
   return 0;
 }
 
@@ -514,7 +517,7 @@ void PerformDefrost2(int advanceToState)
     defstate++;
     break;
   case 2:
-    if (psi[0] > 435)
+    if (psi[5 ] > 435)
       turnOffRelay(RelayCompr2);
     if (millis() > (msStartTime + 5000))
     {
@@ -522,9 +525,9 @@ void PerformDefrost2(int advanceToState)
       turnOffRelay(RelayCompr2);
     }
     break;
-  case 3:
+  case 3://OFF STATE
     //wait for damprt clodse with fan off/compressor off
-    if (millis() > (msStartTime + 75000))
+    if ((millis() > (msStartTime + 75000)) && (!coolstop1))
     {
       defstate = 5;
     }
@@ -578,9 +581,22 @@ void PerformDefrost2(int advanceToState)
     MQTTpublish("defrost2", String(DefrostLevel2, DEC));
     //MQTTpublish("defrost2 / STATE", concat(String(DefrostLevel2, DEC), VVVVVV       break;
   case 11:
-    DefrostLevel2 = 0;
+    DefrostLevel1 = 0;
     defstate = 0;
     MQTTpublish("defrost2", String(DefrostLevel2, DEC));
+    break;
+
+  case 13:  //stop 
+    DefrostLevel2 = 0;
+    defstate = 0;
+    turnOnRelay(RelayFan2);
+    turnOnRelay(RelayCool2);
+    turnOnRelay(RelayCompr2);   
+    damper.setVal(damper2_2, damper2);
+    damper.setVal(damper2_1, damper1);
+    damper.setVal(txv2, txvValue);
+    MQTTpublish("defrost2", String(DefrostLevel2, DEC));
+    break;
   }
 }
 
@@ -598,7 +614,7 @@ void PerformDefrost1(int advanceToState)
   }
   if (advanceToState != 0)
     defstate = advanceToState;
-  switch (defstate)
+  switch (defstate)   
   {
 
   case 0:
@@ -638,7 +654,7 @@ void PerformDefrost1(int advanceToState)
     break;
   case 3:
     //wait for damprt clodse with fan off/compressor off
-    if (millis() > (msStartTime + 85000))
+    if (millis() > (msStartTime + 135000))
     {
       defstate = 5;
     }
@@ -651,7 +667,7 @@ void PerformDefrost1(int advanceToState)
     break;
   case 6:
     //run in reverse with dampers clsoed, bypass open
-    if (millis() > (msStartTime + 185000 + DefrostLevel1 * 10000))
+    if (millis() > (msStartTime + 200000 + DefrostLevel1 * 10000))
       defstate++;
     break;
   case 7:
@@ -661,12 +677,11 @@ void PerformDefrost1(int advanceToState)
     InReverse1 = FALSE;
     turnOnRelay(RelayCompr1);
     damper.setVal(txv1, txv1Value);
-    if (millis() > (msStartTime + 215000 + DefrostLevel1 * 10000))
-      defstate++;
-    break;
+    if (millis() > (msStartTime + 245000 + DefrostLevel1 * 10000))
+      defstate++;   break;
   case 8:
     //restore dampers to previous position
-    //restore txv
+    //restore t
     damper.setVal(damper1_2, damper2);
     damper.setVal(damper1_1, damper1);
     damper.setVal(txv1, txv1Value);
@@ -675,7 +690,7 @@ void PerformDefrost1(int advanceToState)
     break;
   case 9:
     turnOnRelay(RelayBypassDamper1);
-    if (millis() > (msStartTime + 265000 + DefrostLevel1 * 10000))
+    if (millis() > (msStartTime + 285000 + DefrostLevel1 * 10000))
     {
       defstate++;
       turnOnRelay(RelayCompr1);
@@ -683,7 +698,7 @@ void PerformDefrost1(int advanceToState)
     }
     break;
   case 10:
-    if (millis() > (msStartTime + 275000))
+    if (millis() > (msStartTime + 295000))
       defstate++;
     break;
   case 11:
@@ -691,12 +706,24 @@ void PerformDefrost1(int advanceToState)
     defstate = 0;
     MQTTpublish("defrost1", String(DefrostLevel1, DEC));
     // msDefrost1 = millis() + defrostTimer;
+   break;
+
+  case 13:  //stop 
+    DefrostLevel2 = 0;
+    defstate = 0;
+    turnOnRelay(RelayFan1);
+    turnOnRelay(RelayCool1);
+    turnOnRelay(RelayCompr1);   
+    damper.setVal(damper1_2, damper2);
+    damper.setVal(damper1_1, damper1);
+    damper.setVal(txv1, txv1Value);
+    MQTTpublish("defrost1", String(DefrostLevel2, DEC));
+    break;
   }
 }
 
 STARTUP(System.enableFeature(FEATURE_RESET_INFO));
-/****************** SETUP  INITIALIZATION  SETUP  ************************/
-/****************** SETUP  INITIALIZATION  SETUP  ************************/
+/****************** SETUP  INITIALIZATION  SETUP  ************************//****************** SETUP  INITIALIZATION  SETUP  ************************/
 /****************** SETUP  INITIALIZATION  SETUP  ************************/
 /****************** SETUP  INITIALIZATION  SETUP  ************************/
 void setup(void)
@@ -729,8 +756,8 @@ void setup(void)
   }
   //Particle.function("SetDamper", cmdSetDamper);
 
-  //cmdStopDefrost1("abort");
-  //cmdStopDefrost2("abort");
+  cmdStopDefrost1("1");
+  cmdStopDefrost2("2");
   //Wire.begin();
   // Start I2C Transmission
   //Wire.beginTransmission(Addr);  // Continuous conversion mode, Channel-1, 12-bit resolution
@@ -739,29 +766,32 @@ void setup(void)
   //Wire.endTransmission();
   Wire.begin();
   //Wire.reset();
-  Wire.beginTransmission(Addr8574);
+  //      Wire.beginTransmission(Addr8574);
   // Select GPIO as input
   relayMap = 0xFF;
-  Wire.write(relayMap); //Wire.write(0xff);13
+  //       Wire.write(relayMap); //Wire.write(0xff);13
                         // Relay8574(1, 1);
 
   // All relafys turn off
   // Stop I2C transmission
-  Wire.endTransmission();
+  //    Wire.endTransmission();
   //UnitMode1(manual);
-  relayOff8574();
-  delay(5000);
+  //    relayOff8574();
+  //    delay(5000);
   //find all temp sensors
   wd.checkin();
 
-  ds18b20.resetsearch();
-  delay(300); // initialise for sensor search
+  //  ds18b20.resetsearch();
+  //    delay(300); // initialise for sensor search
+  /*
   for (int i = 0; i < nSENSORS; i++)
   {                                     // try to read the sensor addre
     ds18b20.search(sensorAddresses[i]); // and if available store
     delay(400);
     celsius[i] = 0;
   }
+
+  */
   wd.checkin();
 
   //relays.setAddress(0x20);
@@ -803,8 +833,9 @@ void setup(void)
   // Initialise I2C communication as MASTER
   wd.checkin();
   //UnitMode1(manual);
-  cmdTempReset("");
+  //cmdTempReset("");
    wd.checkin();
+
 }
 
 void publishDebug()
@@ -835,6 +866,8 @@ double getTemp(uint8_t addr[8])
 void publishData()
 {
   char szInfo[220];
+ 
+ /*
   snprintf(szInfo, sizeof(szInfo), "%.2f&%.2f&%.2f&%.2f&%.2f&%.2f&%.2f&%.2f&%.2f&%.2f&%.2f&%.2f&%.2f&%.2f&%.2f", celsius[0], celsius[1], celsius[2], celsius[3],
            celsius[4], celsius[5], celsius[6], celsius[7], celsius[8], celsius[9], celsius[10], celsius[11], celsius[10], celsius[11], celsius[12], celsius[13], celsius[14]);
   Particle.publish("dsTEMPS", szInfo, PRIVATE);
@@ -842,7 +875,7 @@ void publishData()
   /*
   for (int i = 0; i < nSENSORS; i++) {   //ry to read the sen-sor addre
     snprintf(szInfo, sizeof(szInfo), "%s %s %s %s %s %s %s %s %s %s %s %s", sensorAddresses[0],sensorAddresses[1], sensorAddresses[2], sensorAddresses[3],
-      sensorAddresses[4], sensorAddresses[5], sensorAddresses[6], sensorAddresses[7], sensorAddresses[8],sensorAddresses[9],sensorAddresses[10],sensorAddresses[11]);
+      sensDSXAddresses[4], sensorAddresses[5], sensorAddresses[6], sensorAddresses[7], sensorAddresses[8],sensorAddresses[9],sensorAddresses[10],sensorAddresses[11]);
     Particle.publish("dsAddress", szInfo, PRIVATE);
   
   }
@@ -903,7 +936,7 @@ void printDebugInfo() {
     case WIRE_DS1820: type = "DS1820"; break;
     case WIRE_DS18B20: type = "DS18B20"; break;
     case WIRE_DS1822: type = "DS1822"; break;
-    case WIRE_DS2438: type = "DS2438"; break;
+    case WIRE_DS2438: type = "DS2438"; brek;
     default: type = "UNKNOWN"; break;
   }
   Serial.print(type);1
@@ -948,8 +981,7 @@ void getTemp(){
     // Next time read() is called the first sensor is read again
     i++;
     if (sensor.searchDone()) {
-      Serial.println("No more addresses.");
-      // Avoid excessive printing when no sensors are connected
+      Serial.println("No more addresses.");      // Avoid excessive printing when no sensors are connected
       delay(250);
 
     // Something went wrong
@@ -1094,7 +1126,7 @@ void loop()
     msDefrost1 = now ;//  + defrostTimer;
 
   if (msDefrost2 == 0)
-    msDefrost2 = now  : //+ defrostTimer;
+    msDefrost2 = now ;  //+ defrostTimer;
 
   wd.checkin();
 
