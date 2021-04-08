@@ -120,7 +120,7 @@ static int cmdPosArray[6];
 
 static bool MAINTENANCE_ON_UNIT1 = FALSE;
 static bool MAINTENANCE_ON_UNIT2 = FALSE;
-static boll coolStop1 = FALSE;
+static bool coolStop1 = FALSE;
 
 enum mode_u
 {
@@ -527,7 +527,7 @@ void PerformDefrost2(int advanceToState)
     break;
   case 3://OFF STATE
     //wait for damprt clodse with fan off/compressor off
-    if ((millis() > (msStartTime + 75000)) && (!coolstop1))
+    if ((millis() > (msStartTime + 75000)) && (!coolStop1))
     {
       defstate = 5;
     }
