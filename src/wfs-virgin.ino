@@ -763,7 +763,7 @@ void setup(void)
   //Wire.beginTransmission(Addr);  // Continuous conversion mode, Channel-1, 12-bit resolution
   //Wire.write(0x10);
   // Stop I2C Transmission
-  //Wire.endTransmission();
+ //Wire.endT-ransmission();
   Wire.begin();
   //Wire.reset();
   //      Wire.beginTransmission(Addr8574);
