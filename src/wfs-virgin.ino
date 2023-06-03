@@ -72,9 +72,9 @@ TODO
 #define RelayCool1 14
 #define RelayBypassDamper1 13
 
-#define RelayFan2 1
-#define RelayCompr2 1
-#define RelayCool2 1
+#define RelayFan2 2
+#define RelayCompr2 2
+#define RelayCool2 2
 #define RelayBypassDamper2 1
 
 static boolean InReverse1 = 0;
